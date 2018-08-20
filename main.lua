@@ -1,87 +1,131 @@
 local Ffi = require("ffi")
 local Lds = require("lds")
+local Bit = require("bit")
 
-Ffi.cdef[[
-   struct Position {
-      float x, y;
-   };
-   struct Velocity {
-      float x, y;
-   };
-   struct Circle {
-      float r;
-   };
-   struct Rectangle {
-      float w, h;
-   };
-]]
+local EntityCount = 50000
 
-local EntityCount = 3000000
+local nextMask = 1
+local function newComponent(struct)
+   local type     = Ffi.typeof("struct {"..struct.."}")
+   local entities = Lds.Array(type, EntityCount)
+   local mask     = nextMask
 
-local Position_T = Ffi.typeof("struct Position")
-local Position   = Lds.Array(Position_T, EntityCount)
+   nextMask = nextMask * 2
 
-local Velocity_T = Ffi.typeof("struct Velocity")
-local Velocity   = Lds.Array(Velocity_T, EntityCount)
-
-local Circle_T = Ffi.typeof("struct Circle")
-local Circle   = Lds.Array(Circle_T, EntityCount)
-
-local Rectangle_T = Ffi.typeof("struct Rectangle")
-local Rectangle   = Lds.Array(Rectangle_T, EntityCount)
-
-local lastID = -1
-local function newEntity()
-   lastID = lastID + 1
-   return lastID
+   return {
+      type     = type,
+      entities = entities,
+      mask     = mask,
+   }
 end
 
-local Physics = {}
-local CircleRenderer = {}
-local RectangleRenderer = {}
+local systems = {}
+local function newSystem(filter)
+   local mask     = 0
+   local entities = Ffi.new("int[?]", EntityCount)
+   local items    = 0
 
-for i = 0, EntityCount - 2 do
-   local e = newEntity()
+   for _, component in ipairs(filter) do
+      mask = mask + component.mask
+   end
 
-   Position:set_e(e, Position_T(love.math.random(0, 1160), love.math.random(0, 600)))
-   Velocity:set_e(e, Velocity_T(love.math.random(10, 40), love.math.random(10, 40)))
-   table.insert(Physics, e)
+   local system = {
+      mask     = mask,
+      entities = entities,
+      items    = items,
+   }
 
-   if love.math.random() < 0.5 then
-      Rectangle:set_e(e, Rectangle_T(love.math.random(20, 40), love.math.random(20, 40)))
-      table.insert(RectangleRenderer, e)
-   else
-      Circle:set_e(e, Circle_T(love.math.random(10, 20)))
-      table.insert(CircleRenderer, e)
+   systems[#systems + 1] = system
+
+   return system
+end
+
+local nextID = 0
+local function newEntity()
+   local id   = nextID
+   local mask = 0
+
+   nextID = nextID + 1
+
+   return {
+      id   = id,
+      mask = mask,
+   }
+end
+
+local function giveComponent(e, component, ...)
+   component.entities:set(e.id, component.type(...))
+   e.mask = e.mask + component.mask
+end
+
+local function filter(e)
+   for _, system in ipairs(systems) do
+      if bit.band(e.mask, system.mask) == system.mask then
+         system.entities[system.items] = e.id
+         system.items = system.items + 1
+      end
    end
 end
 
-function love.update(dt)
-   for i = 1, #Physics do
-      local position = Position:get(i)
-      local velocity = Velocity:get(i)
+local Position = newComponent([[
+   float x, y;
+]])
 
-      position.x = position.x + velocity.x * dt
-      position.y = position.y + velocity.y * dt
+local Velocity = newComponent([[
+   float x, y;
+]])
+
+local Sprite = newComponent([[
+   bool hasSprite;
+]])
+
+local Physics        = newSystem({Position, Velocity})
+local SpriteRenderer = newSystem({Position, Sprite})
+
+for i = 1, EntityCount do
+   local myEntity = newEntity()
+   giveComponent(myEntity, Position, 0, 0)
+   giveComponent(myEntity, Velocity, love.math.random(10, 30), love.math.random(10, 30))
+   giveComponent(myEntity, Sprite, true)
+
+   filter(myEntity)
+end
+
+local sprite = love.graphics.newCanvas(16, 16)
+love.graphics.setCanvas(sprite)
+love.graphics.setColor(1,1,1,1)
+love.graphics.circle("fill",8,8,6)
+love.graphics.setColor(0,0,0,1)
+love.graphics.circle("line",8,8,6)
+love.graphics.circle("line",10,8,1)
+love.graphics.setCanvas()
+love.graphics.setColor(1,1,1,1)
+
+local maxX, maxY = love.graphics.getWidth(), love.graphics.getHeight()
+function love.update(dt)
+   for i = 1, Physics.items do
+      local id = Physics.entities[i - 1]
+
+      local position = Position.entities:get(id)
+      local velocity = Velocity.entities:get(id)
+
+      position.x = position.x + velocity.y * dt
+      position.y = position.y + velocity.x * dt
+
+      if position.x > maxX or position.y > maxY then
+         position.x = 0
+         position.y = 0
+      end
    end
 
    love.window.setTitle(love.timer.getFPS())
 end
 
---[[
 function love.draw()
-   for i = 1, #RectangleRenderer do
-      local position  = Position:get(i)
-      local rectangle = Rectangle:get(i)
+   for i = 1, SpriteRenderer.items do
+      local id = SpriteRenderer.entities[i - 1]
+      local position = Position.entities:get(id)
 
-      --love.graphics.rectangle("fill", position.x, position.y, rectangle.w, rectangle.h)
-   end
-
-   for i = 1, #CircleRenderer do
-      local position = Position:get(i)
-      local circle   = Circle:get(i)
-
-      --love.graphics.circle("fill", position.x, position.y, circle.r)
+      --love.graphics.draw(sprite, position.x, position.y)
    end
 end
-]]
