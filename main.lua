@@ -4,7 +4,7 @@ local Bit = require("bit")
 
 local EntityCount = 50000
 
-local nextMask = 1
+local nextMask = 1ULL
 local function newComponent(struct)
    local type     = Ffi.typeof("struct {"..struct.."}")
    local entities = Lds.Array(type, EntityCount)
@@ -21,8 +21,8 @@ end
 
 local systems = {}
 local function newSystem(filter)
-   local mask     = 0
-   local entities = Ffi.new("int[?]", EntityCount)
+   local mask     = 0ULL
+   local entities = Ffi.new("uint64_t[?]", EntityCount)
    local items    = 0
 
    for _, component in ipairs(filter) do
@@ -43,7 +43,7 @@ end
 local nextID = 0
 local function newEntity()
    local id   = nextID
-   local mask = 0
+   local mask = 0ULL
 
    nextID = nextID + 1
 
@@ -68,11 +68,11 @@ local function filter(e)
 end
 
 local Position = newComponent([[
-   float x, y;
+   double x, y;
 ]])
 
 local Velocity = newComponent([[
-   float x, y;
+   double x, y;
 ]])
 
 local Sprite = newComponent([[
