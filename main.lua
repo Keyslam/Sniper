@@ -16,6 +16,10 @@ local function newComponent(struct)
       type     = type,
       entities = entities,
       mask     = mask,
+
+      get = function(self, id)
+         return self.entities:get(id)
+      end
    }
 end
 
@@ -54,8 +58,12 @@ local function newEntity()
 end
 
 local function giveComponent(e, component, ...)
-   component.entities:set(e.id, component.type(...))
+   local comp = component.type(...)
+
+   component.entities:set(e.id, comp)
    e.mask = e.mask + component.mask
+
+   return comp
 end
 
 local function filter(e)
@@ -76,7 +84,7 @@ local Velocity = newComponent([[
 ]])
 
 local Sprite = newComponent([[
-   bool hasSprite;
+   int texture;
 ]])
 
 local Physics        = newSystem({Position, Velocity})
@@ -86,20 +94,14 @@ for i = 1, EntityCount do
    local myEntity = newEntity()
    giveComponent(myEntity, Position, 0, 0)
    giveComponent(myEntity, Velocity, love.math.random(10, 30), love.math.random(10, 30))
-   giveComponent(myEntity, Sprite, true)
+   giveComponent(myEntity, Sprite, 1)
 
    filter(myEntity)
 end
 
-local sprite = love.graphics.newCanvas(16, 16)
-love.graphics.setCanvas(sprite)
-love.graphics.setColor(1,1,1,1)
-love.graphics.circle("fill",8,8,6)
-love.graphics.setColor(0,0,0,1)
-love.graphics.circle("line",8,8,6)
-love.graphics.circle("line",10,8,1)
-love.graphics.setCanvas()
-love.graphics.setColor(1,1,1,1)
+local textures = {
+   love.graphics.newImage("stone.png"),
+}
 
 local maxX, maxY = love.graphics.getWidth(), love.graphics.getHeight()
 function love.update(dt)
@@ -109,8 +111,8 @@ function love.update(dt)
       local position = Position.entities:get(id)
       local velocity = Velocity.entities:get(id)
 
-      position.x = position.x + velocity.y * dt
-      position.y = position.y + velocity.x * dt
+      position.x = position.x + velocity.x * dt
+      position.y = position.y + velocity.y * dt
 
       if position.x > maxX or position.y > maxY then
          position.x = 0
@@ -124,8 +126,10 @@ end
 function love.draw()
    for i = 1, SpriteRenderer.items do
       local id = SpriteRenderer.entities[i - 1]
-      local position = Position.entities:get(id)
+      local position = Position:get(id)
+      local sprite   = Sprite:get(id)
 
-      --love.graphics.draw(sprite, position.x, position.y)
+      local texture = textures[sprite.texture]
+      --love.graphics.draw(texture, position.x, position.y, nil, 0.25, 0.25)
    end
 end
