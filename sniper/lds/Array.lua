@@ -17,7 +17,9 @@ Conventions:
 
 --]]
 
-local lds = require 'lds/allocator'
+local PATH = (...):gsub('%.[^%.]+$', '')
+
+local lds = require(PATH..".allocator")
 
 local ffi = require 'ffi'
 local C = ffi.C
@@ -205,9 +207,9 @@ local ArrayT__mt = {
         self:__destruct()
     end,
 
-    --- __len metamethod, returning the number of elements in the Array. 
+    --- __len metamethod, returning the number of elements in the Array.
     -- See also Array:size() and Array._size
-    -- @return The number of elements in the Array. 
+    -- @return The number of elements in the Array.
     __len = function( self )
         return self._size
     end,

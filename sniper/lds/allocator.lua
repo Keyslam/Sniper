@@ -19,7 +19,9 @@ JemallocAllocator  uses jemalloc (if available)
 
 --]]
 
-local lds = require 'lds/init'
+local PATH = (...):gsub('%.[^%.]+$', '')
+
+local lds = require(PATH..".init")
 
 local ffi = require 'ffi'
 local C = ffi.C
@@ -32,11 +34,11 @@ local C = ffi.C
 --
 
 ffi.cdef([[
-void * malloc(size_t size); 
+void * malloc(size_t size);
 void * calloc(size_t count, size_t size);
-void * valloc(size_t size); 
+void * valloc(size_t size);
 void * realloc(void *ptr, size_t size);
-void free(void *ptr); 
+void free(void *ptr);
 ]])
 
 
@@ -67,7 +69,7 @@ function lds.MallocAllocatorT( ct, which )
 
     if which == nil or which == 'calloc' then
         -- keep default
-    elseif which == 'malloc' then        
+    elseif which == 'malloc' then
         t_mt.__index.allocate = function(self, n)
             return C.malloc( n * self._ct_size )
         end
@@ -119,7 +121,7 @@ VLAAllocatorT__mt = {
             local vla = ffi.new( self._vla, n )
             VLAAllocator__anchors[tostring(ffi.cast(lds.size_t, vla._data))] = vla
             return vla._data
-        end, 
+        end,
         deallocate = function(self, p)
             -- remove the stored reference and then let GC do the rest
             if p ~= nil then
@@ -156,7 +158,7 @@ function lds.VLAAllocatorT( ct )
     t_mt.__index._ct = ct
     t_mt.__index._ct_size = ffi.sizeof(ct)
     t_mt.__index._vla = ffi.typeof( 'struct { $ _data[?]; }', ct )
-    
+
     local t_anonymous = ffi.typeof( 'struct {}' )
     return ffi.metatype( t_anonymous, t_mt )
 end
