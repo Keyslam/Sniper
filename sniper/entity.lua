@@ -13,13 +13,14 @@ local Entity = {
       struct {
          int id;
          int mask;
+         int oMask;
       }
    ]])
 }
 Ffi.metatype(Entity.type, {__index = Entity})
 
 function Entity.new()
-   local entity = Ffi.new(Entity.type, Entity.nextID, 0)
+   local entity = Ffi.new(Entity.type, Entity.nextID, 0, math.huge)
 
    Entity.nextID = Entity.nextID + 1
 
@@ -44,15 +45,32 @@ function Entity:destroy()
    for _, component in ipairs(Component.components) do
       Ffi.fill(component.entities._data + self.id, component.entities.__ct_size)
    end
+
+   for _, system in ipairs(System.systems) do
+      system:remove(self.id)
+   end
+
+   self.match  = 0
+   self.oMatch = 0
 end
 
 function Entity:filter()
    for _, system in ipairs(System.systems) do
-      if bit.band(self.mask, system.mask) == system.mask then
-         system.entities[system.count] = self.id
-         system.count = system.count + 1
+      local match  = bit.band(self.mask, system.mask) == system.mask
+      local oMatch = bit.band(self.oMask, system.mask) == system.mask
+
+      if match and not oMatch then
+         system:add(self.id)
+      end
+
+      if oMatch and not match then
+         system:remove(self.id)
       end
    end
+
+   self.oMask = self.mask
+
+   return self
 end
 
 return setmetatable(Entity, {
